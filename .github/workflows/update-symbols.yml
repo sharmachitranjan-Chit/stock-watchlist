@@ -1,0 +1,26 @@
+name: Update stock list
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 2 * * 1'   # every Monday, 8:00 AM IST
+
+permissions:
+  contents: write
+
+jobs:
+  symbols:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Download NSE and BSE company lists
+        run: node scripts/build-symbols.mjs
+      - name: Save if changed
+        run: |
+          git config user.name "Chitranjan Sharma"
+          git config user.email "sharmachitranjan-Chit@users.noreply.github.com"
+          git add src/data/symbols.json
+          git diff --cached --quiet || git commit -m "Update NSE and BSE company list" && git push
