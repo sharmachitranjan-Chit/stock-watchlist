@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DEFAULT_CONFIG } from './defaults';
 
 export type Quote = {
   list: string;
@@ -23,14 +24,14 @@ export type Config = { url: string; key: string };
 const CONFIG_KEY = 'wl_config';
 const CACHE_KEY = 'wl_cache';
 
+/** Settings saved on the phone win; otherwise the engine built into the app is used. */
 export async function loadConfig(): Promise<Config | null> {
   try {
     const raw = await AsyncStorage.getItem(CONFIG_KEY);
     const c = raw ? JSON.parse(raw) : null;
-    return c && c.url && c.key ? c : null;
-  } catch {
-    return null;
-  }
+    if (c && c.url && c.key) return c;
+  } catch { /* fall through */ }
+  return DEFAULT_CONFIG.url && DEFAULT_CONFIG.key ? DEFAULT_CONFIG : null;
 }
 
 export async function saveConfig(c: Config) {
