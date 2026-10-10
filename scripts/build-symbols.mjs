@@ -1,4 +1,4 @@
-// Builds src/data/symbols.json: every listed equity on NSE and BSE, one row per company.
+// Builds app/src/main/assets/symbols.json: every listed equity on NSE and BSE, one row per company.
 // Row format: [company name, NSE symbol or "", BSE scrip code or "", ISIN]
 // Run by the "Update stock list" GitHub workflow, which has open internet access.
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -68,7 +68,7 @@ const out = [...byIsin.values()]
   .sort((a, b2) => a.name.localeCompare(b2.name))
   .map(r => [r.name, r.nse, r.bse, r.isin]);
 
-mkdirSync('src/data', { recursive: true });
-writeFileSync('src/data/symbols.json', JSON.stringify(out));
+mkdirSync('app/src/main/assets', { recursive: true });
+writeFileSync('app/src/main/assets/symbols.json', JSON.stringify(out));
 const both = out.filter(r => r[1] && r[2]).length;
 console.log(`NSE ${n.length}, BSE ${b.length}, companies ${out.length}, on both ${both}`);

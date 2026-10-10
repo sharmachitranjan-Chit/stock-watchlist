@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.chitranjan.watchlist"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.chitranjan.watchlist"
