@@ -22,5 +22,5 @@ jobs:
         run: |
           git config user.name "Chitranjan Sharma"
           git config user.email "sharmachitranjan-Chit@users.noreply.github.com"
-          git add src/data/symbols.json
+          git add app/src/main/assets/symbols.json
           git diff --cached --quiet || git commit -m "Update NSE and BSE company list" && git push
