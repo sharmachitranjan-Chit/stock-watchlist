@@ -57,6 +57,7 @@ object Engine {
             val body = try {
                 json.parseToJsonElement(text).jsonObject
             } catch (e: Exception) {
+                android.util.Log.w("WatchlistEngine", "Not JSON for $action: " + text.take(600))
                 throw EngineException("The engine link did not return prices. Check it ends in /exec and is deployed for \"Anyone\".")
             }
             if (body["ok"]?.jsonPrimitive?.booleanOrNull != true) {
@@ -77,6 +78,7 @@ object Engine {
             }
             try {
                 val code = conn.responseCode
+                android.util.Log.i("WatchlistEngine", "GET $code ${url.substringBefore('?').take(80)}")
                 if (code in 300..399) {
                     url = conn.getHeaderField("Location") ?: throw IOException("Redirect without location")
                     return@repeat

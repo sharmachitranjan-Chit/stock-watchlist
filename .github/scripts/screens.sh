@@ -2,12 +2,20 @@
 # Installs the APK on the emulator, walks through every screen and saves PNG screenshots in ./shots.
 set -x
 mkdir -p shots
+# What does the engine answer from this machine, outside the app?
+URL='https://script.google.com/macros/s/AKfycbwtSiaDgdsQyJHgC6ZAXv66XGfCFjEICVFBfsz12LIpc25ee_F4Na8EEC6QOLEHobKB/exec?action=data&key=RS5NYfswFosn7rseUuG_x5WqIdbvPeQ0'
+curl -sS -L -m 60 -D shots/curl_headers.txt "$URL" | head -c 1500 > shots/curl_body.txt
 APK=app/build/outputs/apk/release/app-release.apk
 adb install -r "$APK"
 adb shell am start -n com.chitranjan.watchlist/.MainActivity
 sleep 20   # first load fetches real prices from the Google Sheet engine
 
-shot() { adb exec-out screencap -p > "shots/$1.png"; }
+# Close "isn't responding" dialogs from the emulator's own apps so they don't cover the screen.
+clear_anr() {
+  adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; adb pull /sdcard/ui.xml /tmp/ui.xml >/dev/null 2>&1
+  if grep -q "isn't responding" /tmp/ui.xml; then tap "Wait" 1; fi
+}
+shot() { clear_anr; adb exec-out screencap -p > "shots/$1.png"; }
 
 # Tap the centre of the first element whose text or description matches.
 tap() {
@@ -50,4 +58,5 @@ tap "Side by side"; shot 13_side_by_side_dark
 tap "BHEL" 10; shot 14_bhel_detail_dark
 adb shell input keyevent KEYCODE_BACK; sleep 1
 tap "Settings"; tap "Light" 2; tap "Emerald" 2; tap "Watchlist" 3; shot 15_light_emerald
+adb logcat -d -s WatchlistEngine:* AndroidRuntime:E > shots/logcat.txt
 ls -la shots
