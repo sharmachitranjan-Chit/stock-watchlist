@@ -40,3 +40,10 @@ yarn-error.*
 /ios
 /android
 .claude/
+
+# Android / Gradle
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
