@@ -37,26 +37,29 @@ PY
   sleep "${2:-2}"
 }
 
+# Bring the app back to the front if a Back press closed it.
+front() { adb shell am start -n com.chitranjan.watchlist/.MainActivity >/dev/null 2>&1; sleep 2; }
+
 shot 01_watchlist
 adb shell input swipe 540 1800 540 700 400; sleep 2; shot 02_watchlist_scrolled
 adb shell input swipe 540 700 540 2000 300; sleep 1
 tap "Side by side"; shot 03_side_by_side
 tap "BSE"; shot 04_bse_only
 tap "All"
-tap "RELIANCE" 8; shot 05_stock_detail
+tap "SBIN" 8; shot 05_stock_detail
 tap "1Y" 2; shot 06_stock_1y
 adb shell input swipe 540 1800 540 600 400; sleep 2; shot 07_stock_scrolled
-adb shell input keyevent KEYCODE_BACK; sleep 2
+adb shell input keyevent KEYCODE_BACK; sleep 2; front
 tap "Markets"; shot 08_markets
 tap "Search" 3; adb shell input text "baroda"; sleep 2; shot 09_search_baroda
-adb shell input keyevent KEYCODE_BACK; sleep 1
+adb shell input keyevent KEYCODE_BACK; sleep 1; front
 tap "Settings"; shot 10_settings
 adb shell input swipe 540 1800 540 600 400; sleep 2; shot 11_settings_scrolled
 adb shell input swipe 540 600 540 2000 300; sleep 1
 tap "Dark" 2; tap "Watchlist" 3; shot 12_watchlist_dark
 tap "Side by side"; shot 13_side_by_side_dark
 tap "BHEL" 10; shot 14_bhel_detail_dark
-adb shell input keyevent KEYCODE_BACK; sleep 1
+adb shell input keyevent KEYCODE_BACK; sleep 1; front
 tap "Settings"; tap "Light" 2; tap "Emerald" 2; tap "Watchlist" 3; shot 15_light_emerald
 adb logcat -d -s WatchlistEngine:* AndroidRuntime:E > shots/logcat.txt
 ls -la shots
