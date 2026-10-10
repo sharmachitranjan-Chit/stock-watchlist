@@ -2,7 +2,7 @@
   "expo": {
     "name": "Watchlist",
     "slug": "stock-watchlist",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -17,11 +17,19 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "backgroundColor": "#F7F3E8"
+    "backgroundColor": "#0B0F14",
+    "plugins": [
+      "expo-router"
+    ],
+    "scheme": "watchlist",
+    "experiments": {
+      "typedRoutes": false
+    }
   }
 }

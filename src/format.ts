@@ -82,6 +82,22 @@ export function market(s: Snapshot | null): Market {
   return { k: 'closed', label: n.mins < 540 ? 'Opens 9:15 AM' : 'Closed' };
 }
 
+/** One line explaining when trading happens next, for the Markets screen. */
+export function sessionNote(s: Snapshot | null): string {
+  const m = market(s);
+  const n = ist();
+  if (m.k === 'live') {
+    const left = 930 - n.mins;
+    return `Normal trading until 3:30 PM · ${Math.floor(left / 60)}h ${left % 60}m left`;
+  }
+  if (m.k === 'pre') return 'Pre-open session · normal trading starts at 9:15 AM';
+  if (n.wd === 'Sat') return 'Opens Monday at 9:15 AM (pre-open from 9:00 AM)';
+  if (n.wd === 'Sun') return 'Opens tomorrow at 9:15 AM (pre-open from 9:00 AM)';
+  if (m.label.includes('holiday')) return 'Market holiday today · prices are from the last trading day';
+  if (n.mins < 540) return 'Pre-open from 9:00 AM · normal trading 9:15 AM to 3:30 PM';
+  return n.wd === 'Fri' ? 'Opens Monday at 9:15 AM' : 'Opens tomorrow at 9:15 AM';
+}
+
 export function lastTradeLabel(q: Quote | null | undefined): string {
   if (!q?.tradetime) return '—';
   const t = ist(new Date(q.tradetime));
