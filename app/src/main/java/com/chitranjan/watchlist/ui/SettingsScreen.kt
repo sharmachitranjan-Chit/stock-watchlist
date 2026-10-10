@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -79,13 +78,13 @@ fun SettingsScreen(state: AppState, openConnection: () -> Unit) {
             SectionTitle("Colour palette")
             CardBox {
                 Column {
-                    Row(Modifier.horizontalScroll(rememberScrollState())) {
+                    Row(Modifier.fillMaxWidth()) {
                         Palette.entries.forEach { p ->
                             if (p == Palette.YOU && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return@forEach
                             val on = prefs.palette == p
-                            Column(Modifier.width(66.dp).clickable { state.updatePrefs { it.copy(palette = p) } }, horizontalAlignment = Alignment.CenterHorizontally) {
+                            Column(Modifier.weight(1f).clickable { state.updatePrefs { it.copy(palette = p) } }, horizontalAlignment = Alignment.CenterHorizontally) {
                                 Box(
-                                    Modifier.size(50.dp).clip(CircleShape).border(if (on) 2.5.dp else 1.dp, if (on) cs.primary else x.border, CircleShape).padding(4.dp)
+                                    Modifier.size(46.dp).clip(CircleShape).border(if (on) 2.5.dp else 1.dp, if (on) cs.primary else x.border, CircleShape).padding(4.dp)
                                         .clip(CircleShape)
                                         .background(
                                             if (p == Palette.YOU) Brush.sweepGradient(listOf(Color(0xFF6750A4), Color(0xFF0B7A6E), Color(0xFFB84A0C), Color(0xFF1D5BD8), Color(0xFF6750A4)))
@@ -93,7 +92,7 @@ fun SettingsScreen(state: AppState, openConnection: () -> Unit) {
                                         ),
                                     contentAlignment = Alignment.Center,
                                 ) { if (on) Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(20.dp)) }
-                                Text(if (p == Palette.YOU) "Wallpaper" else p.label, fontSize = 12.sp, fontWeight = if (on) FontWeight.ExtraBold else FontWeight.Medium,
+                                Text(if (p == Palette.YOU) "Wallpaper" else p.label, fontSize = 11.sp, maxLines = 1, softWrap = false, fontWeight = if (on) FontWeight.ExtraBold else FontWeight.Medium,
                                     color = if (on) cs.onSurface else x.muted, modifier = Modifier.padding(top = 6.dp))
                             }
                         }

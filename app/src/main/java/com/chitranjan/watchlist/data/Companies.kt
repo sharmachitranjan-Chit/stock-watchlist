@@ -79,7 +79,8 @@ object Companies {
                 else -> 0
             }
             if (s > 0) {
-                if (c.nse.isNotEmpty() && c.bse.isNotEmpty()) s += 3
+                // Well-known companies trade on both exchanges; lift them above small BSE-only names.
+                if (c.nse.isNotEmpty() && c.bse.isNotEmpty()) s += 12 else if (c.nse.isNotEmpty()) s += 5
                 scored.add(c to s)
             }
         }
