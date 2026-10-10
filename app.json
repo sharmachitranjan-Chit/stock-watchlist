@@ -1,25 +1,27 @@
 {
   "expo": {
-    "name": "watchlist-app",
-    "slug": "watchlist-app",
+    "name": "Watchlist",
+    "slug": "stock-watchlist",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.chitranjan.watchlist"
     },
     "android": {
+      "package": "com.chitranjan.watchlist",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#4A5D45",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "backgroundColor": "#F7F3E8"
   }
 }
