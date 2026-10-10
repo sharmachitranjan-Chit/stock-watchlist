@@ -7,15 +7,17 @@ import { market } from './format';
 import { GainLoss, makeTheme, PaletteId, Theme } from './theme';
 
 export type SortMode = 'my' | 'gain' | 'loss' | 'name';
+export type ViewMode = 'all' | 'nse' | 'bse' | 'compare';
 export type Prefs = {
   scheme: 'system' | 'light' | 'dark';
   palette: PaletteId;
   gainLoss: GainLoss;
   interval: number; // seconds between refreshes during market hours
   sort: SortMode;
+  view: ViewMode;
 };
 
-const DEFAULT_PREFS: Prefs = { scheme: 'system', palette: 'ocean', gainLoss: 'classic', interval: 60, sort: 'my' };
+const DEFAULT_PREFS: Prefs = { scheme: 'system', palette: 'ocean', gainLoss: 'classic', interval: 60, sort: 'my', view: 'all' };
 const PREFS_KEY = 'wl_prefs';
 const LISTS_KEY = 'wl_extra_lists';
 const ACTIVE_KEY = 'wl_active_list';

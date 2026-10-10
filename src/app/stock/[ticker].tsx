@@ -24,6 +24,7 @@ export default function StockScreen() {
   const p = parts(ticker);
 
   const [hist, setHist] = useState<History | null>(null);
+  const [histSource, setHistSource] = useState<'own' | 'nse'>('own');
   const [failed, setFailed] = useState(false);
   const [period, setPeriod] = useState('1M');
   const [busyList, setBusyList] = useState('');
@@ -31,20 +32,42 @@ export default function StockScreen() {
   useEffect(() => {
     if (!st.cfg) return;
     let live = true;
-    api.history(st.cfg, ticker).then(h => live && setHist(h)).catch(() => { if (live) { setFailed(true); setHist([]); } });
+    (async () => {
+      try {
+        let h = await api.history(st.cfg!, ticker);
+        // Google keeps only a point or two of history for many BSE stocks.
+        // The same company's NSE history tracks it within paise, so use that instead.
+        if (h.length < 15 && ticker.startsWith('BOM:') && c?.nse) {
+          const alt = await api.history(st.cfg!, 'NSE:' + c.nse).catch(() => [] as History);
+          if (alt.length > h.length) { h = alt; if (live) setHistSource('nse'); }
+        }
+        if (live) setHist(h);
+      } catch {
+        if (live) { setFailed(true); setHist([]); }
+      }
+    })();
     return () => { live = false; };
-  }, [ticker, st.cfg]);
+  }, [ticker, st.cfg, c?.nse]);
 
   const slice = useMemo(() => {
     if (!hist?.length) return [] as number[];
     const days = PERIODS.find(x => x[0] === period)![1];
-    const cut = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+    const cutMs = Date.now() - days * 86400000;
+    const cut = new Date(cutMs).toISOString().slice(0, 10);
     const inside = hist.filter(h => h[0] >= cut);
+    // Start the line from the close just before the period, but only if it is close to the start date.
     const before = hist.filter(h => h[0] < cut).pop();
-    return (before ? [before, ...inside] : inside).map(h => h[1]);
+    const near = before && (cutMs - new Date(before[0]).getTime()) < 10 * 86400000;
+    if (!inside.length) return [] as number[];
+    return (near ? [before!, ...inside] : inside).map(h => h[1]);
   }, [hist, period]);
 
   const memberOf = new Set((st.data?.rows || []).filter(r => r.ticker === ticker).map(r => r.list));
+  const rowsAll = st.data?.rows || [];
+  const nseQ = c?.nse ? rowsAll.find(r => r.ticker === 'NSE:' + c.nse) : undefined;
+  const bseQ = c?.bse ? rowsAll.find(r => r.ticker === 'BOM:' + c.bse) : undefined;
+  const twin = !isIndex && !!nseQ && !!bseQ;
+  const twinGap = twin && nseQ!.price != null && bseQ!.price != null ? bseQ!.price - nseQ!.price : null;
   const title = isIndex ? INDEX_NAMES[ticker] || q?.name || ticker : labelFor(ticker, q?.name);
 
   async function toggleList(l: string) {
@@ -104,6 +127,12 @@ export default function StockScreen() {
                   <Text style={{ color: t.muted }}>Couldn't load history</Text>
                 </View>
               ) : <PriceChart values={values} />}
+              {histSource === 'nse' && hist != null && !failed && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                  <Ionicons name="information-circle-outline" size={15} color={t.muted} />
+                  <Text style={{ color: t.muted, fontSize: 12, flex: 1 }}>Google has no BSE price history for this stock, so the chart shows its NSE prices.</Text>
+                </View>
+              )}
               <View style={[s.periods, { backgroundColor: t.surface2 }]}>
                 {PERIODS.map(([k]) => (
                   <Pressable key={k} onPress={() => setPeriod(k)} style={[s.period, k === period && { backgroundColor: t.primary }]}>
@@ -112,6 +141,30 @@ export default function StockScreen() {
                 ))}
               </View>
             </Card>
+
+            {twin && (
+              <>
+                <SectionTitle>NSE vs BSE</SectionTitle>
+                <Card>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    {[nseQ, bseQ].map((x, i) => (
+                      <Pressable key={i} disabled={!x || x.ticker === ticker}
+                        onPress={() => x && router.replace({ pathname: '/stock/[ticker]', params: { ticker: x.ticker, list: x.list } })}
+                        style={[s.twin, { backgroundColor: x?.ticker === ticker ? t.primarySoft : t.surface2, borderColor: x?.ticker === ticker ? t.primary : 'transparent' }]}>
+                        <Text style={{ color: t.muted, fontSize: 12, fontWeight: '800', letterSpacing: 0.5 }}>{i === 0 ? 'NSE' : 'BSE'}</Text>
+                        <Text style={{ color: t.text, fontSize: 19, fontWeight: '800', marginTop: 4, fontVariant: ['tabular-nums'] }}>{num(x?.price)}</Text>
+                        {x && <ChangeText change={x.change} pct={x.changepct} style={{ fontSize: 12.5, marginTop: 2 }} />}
+                      </Pressable>
+                    ))}
+                  </View>
+                  {twinGap != null && (
+                    <Text style={{ color: t.textSoft, fontSize: 13, marginTop: 12 }}>
+                      {twinGap === 0 ? 'Same price on both exchanges right now.' : `BSE is ₹${num(Math.abs(twinGap))} ${twinGap > 0 ? 'higher' : 'lower'} than NSE (${num(Math.abs((twinGap / nseQ!.price!) * 100), 2)}%).`}
+                    </Text>
+                  )}
+                </Card>
+              </>
+            )}
 
             <SectionTitle>Today</SectionTitle>
             <Card>
@@ -136,7 +189,7 @@ export default function StockScreen() {
                   </View>
                   <Text style={{ color: t.muted, fontSize: 12.5, marginTop: 10 }}>Tap a list to add or remove this stock.</Text>
                 </Card>
-                {c && c.nse && c.bse && (
+                {c && c.nse && c.bse && !twin && (
                   <Pressable onPress={() => router.navigate('/search')} style={[s.other, { borderColor: t.border }]}>
                     <Ionicons name="swap-horizontal" size={18} color={t.primary} />
                     <Text style={{ color: t.primary, fontWeight: '700', flex: 1 }}>Also listed on {p.ex === 'NSE' ? 'BSE' : 'NSE'} · add it from Search</Text>
@@ -168,5 +221,6 @@ function Grid({ items }: { items: [string, string][] }) {
 const s = StyleSheet.create({
   periods: { flexDirection: 'row', borderRadius: radius.md, padding: 3, marginTop: 14 },
   period: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: radius.sm + 1 },
+  twin: { flex: 1, padding: 12, borderRadius: radius.md, borderWidth: 1.5 },
   other: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, padding: 14, borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth },
 });
