@@ -1,6 +1,8 @@
 name: Screenshot check
 
 on:
+  push:
+    branches: [native]
   workflow_dispatch:
 
 permissions:
