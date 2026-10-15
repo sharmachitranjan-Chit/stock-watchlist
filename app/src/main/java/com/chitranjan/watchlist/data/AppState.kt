@@ -40,8 +40,9 @@ class AppState(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             withContext(Dispatchers.IO) { Companies.load(app) }
             prefs = settings.load()
-            data = settings.loadCache()
+            data = settings.loadCache()?.let { dedupe(it) }
             ready = true
+            if (CrashLog.hasUnseen()) showToast("The app closed unexpectedly last time. Details in Settings → Crash reports.")
             refresh()
         }
     }
@@ -59,7 +60,10 @@ class AppState(app: Application) : AndroidViewModel(app) {
 
     val activeList: String get() = lists.let { if (prefs.activeList in it) prefs.activeList else it.first() }
 
-    fun setActiveList(l: String) = updatePrefs { it.copy(activeList = l) }
+    fun setActiveList(l: String) {
+        CrashLog.step("Opened list “$l”")
+        updatePrefs { it.copy(activeList = l) }
+    }
 
     fun createList(name: String) {
         val n = name.trim().take(30)
@@ -79,7 +83,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             loading = true
             try { apply(Engine.data(engine)); error = null }
-            catch (e: Exception) { error = e.message ?: "Could not load prices" }
+            catch (e: Exception) { error = e.message ?: "Could not load prices"; CrashLog.step("Price refresh failed: $error") }
             finally { loading = false }
         }
     }
@@ -99,7 +103,23 @@ class AppState(app: Application) : AndroidViewModel(app) {
 
     fun stopPolling() { poller?.cancel(); poller = null }
 
-    private fun apply(s: Snapshot) {
+    /**
+     * The sheet can hold the same stock twice in one list (an older engine missed lists with
+     * number-like names such as "123"). Two identical rows crash the scrolling list, so keep one.
+     */
+    private fun dedupe(s: Snapshot): Snapshot {
+        val rows = s.rows.distinctBy { it.key }
+        val indices = s.indices.distinctBy { it.key }
+        if (rows.size != s.rows.size) {
+            val dupes = s.rows.groupingBy { it.key }.eachCount().filterValues { it > 1 }.keys
+            CrashLog.step("Hid ${s.rows.size - rows.size} duplicate row(s): ${dupes.joinToString()}")
+        }
+        return if (rows.size == s.rows.size && indices.size == s.indices.size) s else s.copy(rows = rows, indices = indices)
+    }
+
+    private fun apply(raw: Snapshot) {
+        val s = dedupe(raw)
+        CrashLog.step("Prices loaded: ${s.rows.size} rows in ${s.rows.map { it.list }.distinct().size} list(s)")
         val old = data
         if (old != null) {
             val prev = (old.rows + old.indices).associate { it.key to it.price }
@@ -120,6 +140,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
     /* ---------- edits (all go through the Google Sheet) ---------- */
 
     suspend fun add(list: String, ticker: String) {
+        CrashLog.step("Add $ticker to “$list”")
         loading = true
         try {
             apply(Engine.add(engine, list, ticker))
@@ -127,8 +148,8 @@ class AppState(app: Application) : AndroidViewModel(app) {
         } finally { loading = false }
     }
 
-    suspend fun remove(list: String, ticker: String) = mutate { Engine.remove(engine, list, ticker) }
-    suspend fun move(list: String, ticker: String, dir: Int) = mutate { Engine.move(engine, list, ticker, dir) }
+    suspend fun remove(list: String, ticker: String) { CrashLog.step("Remove $ticker from “$list”"); mutate { Engine.remove(engine, list, ticker) } }
+    suspend fun move(list: String, ticker: String, dir: Int) { CrashLog.step("Move $ticker ${if (dir < 0) "up" else "down"} in “$list”"); mutate { Engine.move(engine, list, ticker, dir) } }
     suspend fun deleteList(list: String) {
         updatePrefs { it.copy(extraLists = it.extraLists - list) }
         mutate { Engine.deleteList(engine, list) }

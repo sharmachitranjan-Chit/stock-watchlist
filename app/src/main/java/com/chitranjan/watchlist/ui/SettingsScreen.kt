@@ -1,5 +1,6 @@
 package com.chitranjan.watchlist.ui
 
+import android.content.Intent
 import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
@@ -42,12 +44,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chitranjan.watchlist.BuildConfigInfo
 import com.chitranjan.watchlist.data.AppState
 import com.chitranjan.watchlist.data.Companies
+import com.chitranjan.watchlist.data.CrashLog
 import com.chitranjan.watchlist.data.GainLoss
 import com.chitranjan.watchlist.data.Palette
 import com.chitranjan.watchlist.data.ThemeMode
@@ -61,6 +66,8 @@ fun SettingsScreen(state: AppState, openConnection: () -> Unit) {
     val scope = rememberCoroutineScope()
     var newList by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<String?>(null) }
+    var crashes by remember { mutableStateOf(CrashLog.reports()) }
+    var showCrashes by remember { mutableStateOf(false) }
     val counts = state.data?.rows.orEmpty().groupingBy { it.list }.eachCount()
 
     Column(Modifier.fillMaxSize().background(cs.background).windowInsetsPadding(WindowInsets.statusBars)) {
@@ -151,6 +158,15 @@ fun SettingsScreen(state: AppState, openConnection: () -> Unit) {
                 }
             }
 
+            SectionTitle("Crash reports")
+            CardBox(padding = 0.dp) {
+                Column {
+                    NavRow("Crash reports", if (crashes.isEmpty()) "None" else "${crashes.size} saved",
+                        if (crashes.isEmpty()) null else x.down, onClick = { crashes = CrashLog.reports(); CrashLog.markSeen(); showCrashes = true })
+                }
+            }
+            Hint("If the app closes on its own, the reason is saved here. Share it to find what went wrong.")
+
             SectionTitle("About")
             CardBox {
                 Column {
@@ -163,6 +179,9 @@ fun SettingsScreen(state: AppState, openConnection: () -> Unit) {
     }
 
     if (newList) NameDialog("New list", "e.g. Banks, Long term", onDismiss = { newList = false }) { state.createList(it); newList = false; state.showToast("“$it” created") }
+    if (showCrashes) CrashDialog(crashes, onClear = { CrashLog.clear(); crashes = emptyList(); showCrashes = false; state.showToast("Crash reports cleared") },
+        onDismiss = { showCrashes = false })
+
     deleting?.let { l ->
         val n = counts[l] ?: 0
         AlertDialog(
@@ -194,4 +213,46 @@ private fun NavRow(title: String, value: String, valueColor: Color?, onClick: ((
         Text(value, style = MaterialTheme.typography.bodyMedium, color = valueColor ?: x.muted, fontWeight = if (valueColor != null) FontWeight.Bold else FontWeight.Normal)
         if (onClick != null) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = x.muted, modifier = Modifier.padding(start = 4.dp).size(20.dp))
     }
+}
+
+@Composable
+private fun CrashDialog(reports: List<String>, onClear: () -> Unit, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    var i by remember { mutableStateOf(0) }
+    val x = LocalExtra.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (reports.isEmpty()) "No crashes" else "Crash ${i + 1} of ${reports.size}") },
+        text = {
+            if (reports.isEmpty()) Text("The app has not crashed since the reports were last cleared.")
+            else Column {
+                if (reports.size > 1) Row(Modifier.padding(bottom = 8.dp)) {
+                    Text("‹ Newer", color = if (i > 0) MaterialTheme.colorScheme.primary else x.muted, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable(enabled = i > 0) { i-- })
+                    Spacer(Modifier.weight(1f))
+                    Text("Older ›", color = if (i < reports.size - 1) MaterialTheme.colorScheme.primary else x.muted, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable(enabled = i < reports.size - 1) { i++ })
+                }
+                SelectionContainer {
+                    Text(reports[i], fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 15.sp,
+                        modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()))
+                }
+            }
+        },
+        confirmButton = {
+            if (reports.isEmpty()) TextButton(onClick = onDismiss) { Text("OK") }
+            else TextButton(onClick = {
+                val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+                    .putExtra(Intent.EXTRA_SUBJECT, "Watchlist crash report")
+                    .putExtra(Intent.EXTRA_TEXT, reports[i])
+                context.startActivity(Intent.createChooser(send, "Share crash report"))
+            }) { Text("Share") }
+        },
+        dismissButton = {
+            if (reports.isNotEmpty()) Row {
+                TextButton(onClick = onClear) { Text("Clear all", color = x.down) }
+                TextButton(onClick = onDismiss) { Text("Close") }
+            }
+        },
+    )
 }

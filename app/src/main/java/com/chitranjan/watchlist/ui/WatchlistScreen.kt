@@ -42,6 +42,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chitranjan.watchlist.data.AppState
 import com.chitranjan.watchlist.data.Companies
+import com.chitranjan.watchlist.data.CrashLog
 import com.chitranjan.watchlist.data.Quote
 import com.chitranjan.watchlist.data.SortMode
 import com.chitranjan.watchlist.data.ViewMode
@@ -91,8 +93,9 @@ fun WatchlistScreen(state: AppState, openStock: (Quote) -> Unit, openSearch: () 
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 8 } }
     val showTicker by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
 
-    val inList = data?.rows.orEmpty().filter { it.list == list }
-    val rows = when (prefs.view) {
+    // Worked out only when prices, list, view or sort change, not on every scroll frame.
+    val inList = remember(data, list) { data?.rows.orEmpty().filter { it.list == list } }
+    val rows = remember(inList, prefs.view, prefs.sort) { when (prefs.view) {
         ViewMode.NSE -> inList.filter { it.isNse }
         ViewMode.BSE -> inList.filter { it.isBse }
         else -> inList
@@ -103,8 +106,8 @@ fun WatchlistScreen(state: AppState, openStock: (Quote) -> Unit, openSearch: () 
             SortMode.LOSS -> r.sortedBy { it.changepct ?: 1e9 }
             SortMode.NAME -> r.sortedBy { Companies.label(it.ticker) }
         }
-    }
-    val pairs = inList.mapIndexed { i, q -> i to q }
+    } }
+    val pairs = remember(inList, prefs.sort) { inList.mapIndexed { i, q -> i to q }
         .groupBy { (_, q) -> Companies.forTicker(q.ticker)?.isin ?: q.ticker }
         .map { (k, v) -> Pair2(k, Companies.forTicker(v.first().second.ticker), v.firstOrNull { it.second.isNse }?.second, v.firstOrNull { it.second.isBse }?.second, v.first().first) }
         .let { p ->
@@ -112,12 +115,15 @@ fun WatchlistScreen(state: AppState, openStock: (Quote) -> Unit, openSearch: () 
                 SortMode.MY -> p.sortedBy { it.order }
                 SortMode.GAIN -> p.sortedByDescending { maxOf(it.nse?.changepct ?: -1e9, it.bse?.changepct ?: -1e9) }
                 SortMode.LOSS -> p.sortedBy { minOf(it.nse?.changepct ?: 1e9, it.bse?.changepct ?: 1e9) }
-                SortMode.NAME -> p.sortedBy { Companies.label((it.nse ?: it.bse)!!.ticker) }
+                SortMode.NAME -> p.sortedBy { Companies.label((it.nse ?: it.bse)?.ticker ?: it.key) }
             }
-        }
+        } }
     val compare = prefs.view == ViewMode.COMPARE
     val count = if (compare) pairs.size else rows.size
     val indices = data?.indices.orEmpty().filter { it.price != null }
+    LaunchedEffect(list, prefs.view, prefs.sort, count) {
+        CrashLog.step("Watchlist: “$list”, ${prefs.view.label}, ${prefs.sort.label}, $count rows")
+    }
 
     val lt = latestTrade(data)
     val status = when {
