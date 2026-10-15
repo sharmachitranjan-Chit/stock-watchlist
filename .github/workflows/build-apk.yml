@@ -32,7 +32,14 @@ jobs:
           gradle-version: '9.6.0'
 
       - name: Build release APK
-        run: gradle :app:assembleRelease --no-daemon
+        run: |
+          set -o pipefail
+          gradle :app:assembleRelease --no-daemon 2>&1 | tee build.log
+
+      - name: Show build errors
+        if: failure()
+        run: |
+          grep -E "^e: |What went wrong|^> |error:|Exception" build.log | head -25 | while IFS= read -r l; do echo "::error::$l"; done
 
       - name: Name the APK
         id: apk
