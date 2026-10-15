@@ -39,7 +39,8 @@ jobs:
       - name: Show build errors
         if: failure()
         run: |
-          grep -E "^e: |What went wrong|^> |error:|Exception" build.log | head -25 | while IFS= read -r l; do echo "::error::$l"; done
+          MSG=$( { grep -E "^e: " build.log; grep -A6 "What went wrong" build.log; } | grep -v "> Task" | head -30 | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')
+          echo "::error title=Build errors::${MSG:-No compiler errors found in log}"
 
       - name: Name the APK
         id: apk
