@@ -52,6 +52,8 @@ import com.chitranjan.watchlist.data.Quote
 import com.chitranjan.watchlist.data.ThemeMode
 import com.chitranjan.watchlist.ui.ConnectionScreen
 import com.chitranjan.watchlist.ui.LocalExtra
+import com.chitranjan.watchlist.ui.InsightsIcon
+import com.chitranjan.watchlist.ui.InsightsScreen
 import com.chitranjan.watchlist.ui.MarketsIcon
 import com.chitranjan.watchlist.ui.MarketsScreen
 import com.chitranjan.watchlist.ui.SearchScreen
@@ -64,7 +66,7 @@ import com.chitranjan.watchlist.ui.WatchlistTheme
 /** Version shown in Settings, read from the installed package. */
 object BuildConfigInfo { var version: String = "" }
 
-private enum class Tab(val label: String) { WATCHLIST("Watchlist"), MARKETS("Markets"), SEARCH("Search"), SETTINGS("Settings") }
+private enum class Tab(val label: String) { WATCHLIST("Watchlist"), INSIGHTS("Insights"), MARKETS("Markets"), SEARCH("Search"), SETTINGS("Settings") }
 
 /** Screens that open on top of the tabs. */
 private sealed interface Overlay {
@@ -86,7 +88,7 @@ class MainActivity : ComponentActivity() {
                 val style = if (dark) SystemBarStyle.dark(AColor.TRANSPARENT) else SystemBarStyle.light(AColor.TRANSPARENT, AColor.TRANSPARENT)
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
-            WatchlistTheme(p.theme, p.palette, p.gainLoss) { App(state) }
+            WatchlistTheme(p) { App(state) }
         }
     }
 
@@ -95,9 +97,20 @@ class MainActivity : ComponentActivity() {
     override fun onStop() { super.onStop(); state.stopPolling() }
 }
 
+private fun startTab(s: com.chitranjan.watchlist.data.StartTab) = when (s) {
+    com.chitranjan.watchlist.data.StartTab.WATCHLIST -> Tab.WATCHLIST
+    com.chitranjan.watchlist.data.StartTab.INSIGHTS -> Tab.INSIGHTS
+    com.chitranjan.watchlist.data.StartTab.MARKETS -> Tab.MARKETS
+}
+
 @Composable
 private fun App(state: AppState) {
-    var tab by rememberSaveable { mutableStateOf(Tab.WATCHLIST) }
+    var tab by rememberSaveable { mutableStateOf(if (state.ready) startTab(state.prefs.startTab) else Tab.WATCHLIST) }
+    // The saved start screen is known once settings have loaded; apply it a single time.
+    var started by rememberSaveable { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(state.ready) {
+        if (state.ready && !started) { started = true; tab = startTab(state.prefs.startTab) }
+    }
     var stack by androidx.compose.runtime.remember { mutableStateOf(listOf<Overlay>()) }
     val cs = MaterialTheme.colorScheme
     val x = LocalExtra.current
@@ -114,7 +127,8 @@ private fun App(state: AppState) {
             Box(Modifier.weight(1f)) {
                 AnimatedContent(tab, label = "tabs", transitionSpec = { fadeIn() togetherWith fadeOut() }) { t ->
                     when (t) {
-                        Tab.WATCHLIST -> WatchlistScreen(state, openStock) { tab = Tab.SEARCH }
+                        Tab.WATCHLIST -> WatchlistScreen(state, openStock, openSearch = { tab = Tab.SEARCH }, openInsights = { tab = Tab.INSIGHTS })
+                        Tab.INSIGHTS -> InsightsScreen(state, openStock) { tab = Tab.SEARCH }
                         Tab.MARKETS -> MarketsScreen(state, openStock)
                         Tab.SEARCH -> SearchScreen(state)
                         Tab.SETTINGS -> SettingsScreen(state) { open(Overlay.Connection) }
@@ -125,6 +139,7 @@ private fun App(state: AppState) {
                 Tab.entries.forEach { t ->
                     val icon: ImageVector = when (t) {
                         Tab.WATCHLIST -> Icons.AutoMirrored.Filled.List
+                        Tab.INSIGHTS -> InsightsIcon
                         Tab.MARKETS -> MarketsIcon
                         Tab.SEARCH -> Icons.Filled.Search
                         Tab.SETTINGS -> Icons.Filled.Settings

@@ -77,7 +77,7 @@ import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WatchlistScreen(state: AppState, openStock: (Quote) -> Unit, openSearch: () -> Unit) {
+fun WatchlistScreen(state: AppState, openStock: (Quote) -> Unit, openSearch: () -> Unit, openInsights: () -> Unit) {
     val x = LocalExtra.current
     val cs = MaterialTheme.colorScheme
     val prefs = state.prefs
@@ -85,45 +85,57 @@ fun WatchlistScreen(state: AppState, openStock: (Quote) -> Unit, openSearch: () 
     val list = state.activeList
     val scope = rememberCoroutineScope()
     var edit by remember { mutableStateOf(false) }
-    var newList by remember { mutableStateOf(false) }
     var confirm by remember { mutableStateOf<Quote?>(null) }
     val listState = rememberLazyListState()
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 8 } }
     val showTicker by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
 
-    val inList = data?.rows.orEmpty().filter { it.list == list }
-    val rows = when (prefs.view) {
-        ViewMode.NSE -> inList.filter { it.isNse }
-        ViewMode.BSE -> inList.filter { it.isBse }
-        else -> inList
-    }.let { r ->
-        when (prefs.sort) {
-            SortMode.MY -> r
-            SortMode.GAIN -> r.sortedByDescending { it.changepct ?: -1e9 }
-            SortMode.LOSS -> r.sortedBy { it.changepct ?: 1e9 }
-            SortMode.NAME -> r.sortedBy { Companies.label(it.ticker) }
-        }
-    }
-    val pairs = inList.mapIndexed { i, q -> i to q }
-        .groupBy { (_, q) -> Companies.forTicker(q.ticker)?.isin ?: q.ticker }
-        .map { (k, v) -> Pair2(k, Companies.forTicker(v.first().second.ticker), v.firstOrNull { it.second.isNse }?.second, v.firstOrNull { it.second.isBse }?.second, v.first().first) }
-        .let { p ->
+    // Filtering and sorting run only when the prices, the list or the view change, not on every frame.
+    val inList = remember(data, list) { data?.rows.orEmpty().filter { it.list == list } }
+    val rows = remember(inList, prefs.view, prefs.sort) {
+        when (prefs.view) {
+            ViewMode.NSE -> inList.filter { it.isNse }
+            ViewMode.BSE -> inList.filter { it.isBse }
+            else -> inList
+        }.let { r ->
             when (prefs.sort) {
-                SortMode.MY -> p.sortedBy { it.order }
-                SortMode.GAIN -> p.sortedByDescending { maxOf(it.nse?.changepct ?: -1e9, it.bse?.changepct ?: -1e9) }
-                SortMode.LOSS -> p.sortedBy { minOf(it.nse?.changepct ?: 1e9, it.bse?.changepct ?: 1e9) }
-                SortMode.NAME -> p.sortedBy { Companies.label((it.nse ?: it.bse)!!.ticker) }
+                SortMode.MY -> r
+                SortMode.GAIN -> r.sortedByDescending { it.changepct ?: -1e9 }
+                SortMode.LOSS -> r.sortedBy { it.changepct ?: 1e9 }
+                SortMode.NAME -> r.sortedBy { Companies.label(it.ticker) }
             }
         }
+    }
+    val pairs = remember(inList, prefs.sort, prefs.view == ViewMode.COMPARE) {
+        if (prefs.view != ViewMode.COMPARE) emptyList() else inList.mapIndexed { i, q -> i to q }
+            .groupBy { (_, q) -> Companies.forTicker(q.ticker)?.isin ?: q.ticker }
+            .map { (k, v) -> Pair2(k, Companies.forTicker(v.first().second.ticker), v.firstOrNull { it.second.isNse }?.second, v.firstOrNull { it.second.isBse }?.second, v.first().first) }
+            .let { p ->
+                when (prefs.sort) {
+                    SortMode.MY -> p.sortedBy { it.order }
+                    SortMode.GAIN -> p.sortedByDescending { maxOf(it.nse?.changepct ?: -1e9, it.bse?.changepct ?: -1e9) }
+                    SortMode.LOSS -> p.sortedBy { minOf(it.nse?.changepct ?: 1e9, it.bse?.changepct ?: 1e9) }
+                    SortMode.NAME -> p.sortedBy { Companies.label((it.nse ?: it.bse)!!.ticker) }
+                }
+            }
+    }
+    val summary = remember(inList) {
+        if (inList.isEmpty()) null else {
+            fun avg(f: (Quote) -> Boolean) = inList.filter(f).mapNotNull { it.changepct }.let { if (it.isEmpty()) null else it.average() }
+            Triple(avg { true }, avg { it.isNse }, avg { it.isBse })
+        }
+    }
     val compare = prefs.view == ViewMode.COMPARE
     val count = if (compare) pairs.size else rows.size
-    val indices = data?.indices.orEmpty().filter { it.price != null }
+    val indices = remember(data) { data?.indices.orEmpty().filter { it.price != null } }
 
-    val lt = latestTrade(data)
-    val status = when {
-        data == null -> "Loading prices…"
-        market(data).kind == MarketKind.CLOSED && lt != null -> "Prices as of ${day(lt)}, ${hm(lt)}"
-        else -> "Updated ${hm(ist(data.at))}"
+    val status = remember(data) {
+        val lt = latestTrade(data)
+        when {
+            data == null -> "Loading prices…"
+            market(data).kind == MarketKind.CLOSED && lt != null -> "Prices as of ${day(lt)}, ${hm(lt)}"
+            else -> "Updated ${hm(ist(data.at))}"
+        }
     }
 
     Column(Modifier.fillMaxSize().background(cs.background)) {
@@ -182,12 +194,19 @@ fun WatchlistScreen(state: AppState, openStock: (Quote) -> Unit, openSearch: () 
                                 }
                             }
                         }
-                        Row(
-                            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 16.dp, bottom = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            state.lists.forEach { l -> ChipBtn(l, active = l == list) { state.setActiveList(l); edit = false } }
-                            ChipBtn("New list", icon = Icons.Filled.Add) { newList = true }
+                        ListChips(state, Modifier.padding(top = 16.dp, bottom = 4.dp), onSwitch = { edit = false })
+                        summary?.let { (all, nse, bse) ->
+                            Row(
+                                Modifier.padding(horizontal = 16.dp).padding(top = 10.dp).fillMaxWidth().clip(Shape12).background(cs.surface)
+                                    .clickable { openInsights() }.padding(horizontal = 12.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            ) {
+                                SummaryItem("List", all)
+                                if (nse != null) SummaryItem("NSE", nse)
+                                if (bse != null) SummaryItem("BSE", bse)
+                                Spacer(Modifier.weight(1f))
+                                Text("Insights ›", color = cs.primary, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                            }
                         }
                     }
                 }
@@ -258,8 +277,6 @@ fun WatchlistScreen(state: AppState, openStock: (Quote) -> Unit, openSearch: () 
         }
     }
 
-    if (newList) NameDialog("New list", "e.g. Banks, Long term", onDismiss = { newList = false }) { state.createList(it); newList = false }
-
     confirm?.let { q ->
         AlertDialog(
             onDismissRequest = { confirm = null },
@@ -304,13 +321,11 @@ fun StatusPill(state: AppState) {
 }
 
 @Composable
-fun NameDialog(title: String, placeholder: String, onDismiss: () -> Unit, onCreate: (String) -> Unit) {
-    var v by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = { OutlinedTextField(v, { if (it.length <= 30) v = it }, placeholder = { Text(placeholder) }, singleLine = true) },
-        confirmButton = { TextButton(onClick = { if (v.isNotBlank()) onCreate(v.trim()) }) { Text("Create") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
+private fun SummaryItem(label: String, pct: Double?) {
+    val x = LocalExtra.current
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = x.muted, letterSpacing = 0.2.sp)
+        Spacer(Modifier.width(5.dp))
+        Text(if (pct == null) "—" else "${arrow(pct)}${num(abs(pct))}%", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = dirColor(pct), maxLines = 1)
+    }
 }

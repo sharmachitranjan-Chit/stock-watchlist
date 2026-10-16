@@ -10,6 +10,7 @@
  *   ?action=remove&list=My list&ticker=NSE:TCS
  *   ?action=move&list=My list&ticker=NSE:TCS&dir=-1   (−1 up, +1 down)
  *   ?action=deleteList&list=Banks
+ *   ?action=renameList&list=Banks&to=Financials
  */
 
 const SHEET_ID = '17uiQK74TKib-epCr_FO6VBk7dwSmFf8xZotsMKrQ14c';
@@ -37,6 +38,7 @@ function doGet(e) {
       case 'remove':     data = removeStock(p.list, p.ticker); break;
       case 'move':       data = moveStock(p.list, p.ticker, Number(p.dir) < 0 ? -1 : 1); break;
       case 'deleteList': data = deleteList(p.list); break;
+      case 'renameList': data = renameList(p.list, p.to); break;
       default: throw new Error('Unknown action: ' + p.action);
     }
     return json_({ ok: true, data: data });
@@ -117,6 +119,29 @@ function deleteList(list) {
     if (n > 0) {
       const v = sh.getRange(2, 1, n, 1).getValues();
       for (let i = v.length - 1; i >= 0; i--) if (v[i][0] === list) sh.deleteRow(i + 2);
+    }
+    return getData();
+  });
+}
+
+/** Gives every stock of a list a new list name. Refuses a name that another list already uses. */
+function renameList(from, to) {
+  from = cleanList_(from);
+  to = cleanList_(to);
+  return locked_(function () {
+    const sh = sheet_(WL);
+    const n = sh.getLastRow() - 1;
+    if (n > 0 && from !== to) {
+      const rng = sh.getRange(2, 1, n, 1);
+      const v = rng.getValues();
+      let changed = false;
+      for (let i = 0; i < v.length; i++) {
+        if (v[i][0] === to) throw new Error('A list called "' + to + '" already exists');
+      }
+      for (let i = 0; i < v.length; i++) {
+        if (v[i][0] === from) { v[i][0] = to; changed = true; }
+      }
+      if (changed) { rng.setValues(v); SpreadsheetApp.flush(); }
     }
     return getData();
   });

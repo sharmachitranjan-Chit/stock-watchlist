@@ -7,6 +7,8 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 
 private val Context.store by preferencesDataStore("watchlist")
 
@@ -15,6 +17,10 @@ enum class Palette(val label: String) { YOU("Your wallpaper"), OCEAN("Ocean"), E
 enum class GainLoss { CLASSIC, COLORBLIND }
 enum class SortMode(val label: String) { MY("My order"), GAIN("Top gainers"), LOSS("Top losers"), NAME("A–Z") }
 enum class ViewMode(val label: String) { ALL("All"), NSE("NSE"), BSE("BSE"), COMPARE("Side by side") }
+enum class TextSize(val label: String, val scale: Float) { SMALL("Small", 0.92f), NORMAL("Default", 1f), LARGE("Large", 1.12f), HUGE("Largest", 1.25f) }
+enum class Density(val label: String) { COMFORTABLE("Comfortable"), COMPACT("Compact") }
+enum class StartTab(val label: String) { WATCHLIST("Watchlist"), INSIGHTS("Insights"), MARKETS("Markets") }
+enum class Period(val label: String, val days: Long) { W1("1W", 7), M1("1M", 30), M3("3M", 91), M6("6M", 182), Y1("1Y", 365) }
 
 data class Prefs(
     val theme: ThemeMode = ThemeMode.SYSTEM,
@@ -27,7 +33,17 @@ data class Prefs(
     val extraLists: List<String> = emptyList(),
     val customUrl: String = "",
     val customKey: String = "",
+    val pureBlack: Boolean = false,
+    val textSize: TextSize = TextSize.NORMAL,
+    val density: Density = Density.COMFORTABLE,
+    val hideAmounts: Boolean = false,
+    val startTab: StartTab = StartTab.WATCHLIST,
+    val period: Period = Period.M1,
+    /** Quantity and average price per stock, keyed by "list|ticker" (see [Quote.key]). */
+    val holdings: Map<String, Holding> = emptyMap(),
 )
+
+private val HOLDINGS = MapSerializer(String.serializer(), Holding.serializer())
 
 /** Everything the app remembers on the phone. Watchlists themselves live in the Google Sheet. */
 class Settings(private val context: Context) {
@@ -43,6 +59,13 @@ class Settings(private val context: Context) {
         val url = stringPreferencesKey("engine_url")
         val key = stringPreferencesKey("engine_key")
         val cache = stringPreferencesKey("snapshot_cache")
+        val pureBlack = stringPreferencesKey("pure_black")
+        val textSize = stringPreferencesKey("text_size")
+        val density = stringPreferencesKey("density")
+        val hide = stringPreferencesKey("hide_amounts")
+        val startTab = stringPreferencesKey("start_tab")
+        val period = stringPreferencesKey("period")
+        val holdings = stringPreferencesKey("holdings")
     }
 
     private inline fun <reified T : Enum<T>> Preferences.enum(k: Preferences.Key<String>, d: T): T =
@@ -61,6 +84,13 @@ class Settings(private val context: Context) {
             extraLists = p[K.extra]?.split('\n')?.filter { it.isNotBlank() } ?: emptyList(),
             customUrl = p[K.url] ?: "",
             customKey = p[K.key] ?: "",
+            pureBlack = p[K.pureBlack] == "1",
+            textSize = p.enum(K.textSize, TextSize.NORMAL),
+            density = p.enum(K.density, Density.COMFORTABLE),
+            hideAmounts = p[K.hide] == "1",
+            startTab = p.enum(K.startTab, StartTab.WATCHLIST),
+            period = p.enum(K.period, Period.M1),
+            holdings = p[K.holdings]?.let { runCatching { Engine.json.decodeFromString(HOLDINGS, it) }.getOrNull() } ?: emptyMap(),
         )
     }
 
@@ -76,6 +106,13 @@ class Settings(private val context: Context) {
             it[K.extra] = x.extraLists.joinToString("\n")
             it[K.url] = x.customUrl
             it[K.key] = x.customKey
+            it[K.pureBlack] = if (x.pureBlack) "1" else "0"
+            it[K.textSize] = x.textSize.name
+            it[K.density] = x.density.name
+            it[K.hide] = if (x.hideAmounts) "1" else "0"
+            it[K.startTab] = x.startTab.name
+            it[K.period] = x.period.name
+            it[K.holdings] = Engine.json.encodeToString(HOLDINGS, x.holdings)
         }
     }
 
