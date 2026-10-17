@@ -25,9 +25,8 @@ Prices come from Google Finance through the "Stock Watchlist" Google Sheet and t
 
 ## Renaming a list
 
-The sheet stores the list name on every stock row, so a rename is a rename of that column.
-`engine/Code.gs` has a new `renameList` action. **Redeploy the Apps Script (Deploy → Manage deployments → Edit → New version) to get the one-step rename.**
-Until then the app falls back to copying the stocks into the new name one by one and deleting the old list, which works but is slower.
+Renaming works inside the app and needs **no change to the Google Sheet script**: the app keeps the new name on the phone and translates it back to the sheet's own name for every add, remove, move and delete.
+If you ever redeploy `engine/Code.gs` (it has a `renameList` action), the next rename also renames the list in the sheet itself.
 
 ## Ideas not done yet
 

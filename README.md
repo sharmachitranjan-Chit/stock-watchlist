@@ -8,5 +8,3 @@ Personal NSE/BSE share watchlist for Android, by Chitranjan Sharma.
 - The engine link and key are built in (`src/defaults.ts`). **Keep this repository private.**
 
 Screens: Watchlist, Insights (NSE vs BSE, sectors, history), Markets, Search, Settings and a stock detail page. See [PROGRESS.md](PROGRESS.md) for what each does and how the numbers are worked out.
-
-**After updating, redeploy the Apps Script** (`engine/Code.gs`, new version) so renaming a list is a single step.

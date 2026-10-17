@@ -98,8 +98,8 @@ function moveStock(list, ticker, dir) {
     if (n < 2) return getData();
     const v = sh.getRange(2, 1, n, 2).getValues();
     const rows = [];
-    v.forEach(function (r, i) { if (r[0] === list) rows.push(i + 2); });
-    const at = rows.findIndex(function (r) { return v[r - 2][1] === ticker; });
+    v.forEach(function (r, i) { if (String(r[0]) === list) rows.push(i + 2); });
+    const at = rows.findIndex(function (r) { return String(v[r - 2][1]) === ticker; });
     const to = at + dir;
     if (at < 0 || to < 0 || to >= rows.length) return getData();
     const a = rows[at], b = rows[to];
@@ -118,7 +118,7 @@ function deleteList(list) {
     const n = sh.getLastRow() - 1;
     if (n > 0) {
       const v = sh.getRange(2, 1, n, 1).getValues();
-      for (let i = v.length - 1; i >= 0; i--) if (v[i][0] === list) sh.deleteRow(i + 2);
+      for (let i = v.length - 1; i >= 0; i--) if (String(v[i][0]) === list) sh.deleteRow(i + 2);
     }
     return getData();
   });
@@ -195,6 +195,7 @@ function sheet_(name) {
 
 function appendRow_(sh, list, ticker) {
   const row = sh.getLastRow() + 1;
+  sh.getRange(row, 1, 1, 2).setNumberFormat('@');   // keep list names like "123" as text
   sh.getRange(row, 1, 1, 2).setValues([[list, ticker]]);
   const f = FIELDS.map(function (x) { return '=IFERROR(GOOGLEFINANCE($B' + row + ',"' + x + '"),"")'; });
   sh.getRange(row, 3, 1, FIELDS.length).setFormulas([f]);
@@ -230,11 +231,12 @@ function toIso_(x) {
   return null;
 }
 
+// The sheet turns a list name like "123" into the number 123, so always compare as text.
 function findRow_(sh, list, ticker) {
   const n = sh.getLastRow() - 1;
   if (n < 1) return -1;
   const v = sh.getRange(2, 1, n, 2).getValues();
-  for (let i = 0; i < v.length; i++) if (v[i][0] === list && v[i][1] === ticker) return i + 2;
+  for (let i = 0; i < v.length; i++) if (String(v[i][0]) === list && String(v[i][1]) === ticker) return i + 2;
   return -1;
 }
 
@@ -255,4 +257,22 @@ function locked_(fn) {
   const lock = LockService.getScriptLock();
   lock.waitLock(25000);
   try { return fn(); } finally { lock.releaseLock(); }
+}
+
+/** One-off tidy-up: run from the Apps Script editor to delete repeated stocks in the same list. */
+function removeDuplicates() {
+  return locked_(function () {
+    const sh = sheet_(WL);
+    const n = sh.getLastRow() - 1;
+    if (n < 1) return 0;
+    const v = sh.getRange(2, 1, n, 2).getValues();
+    const seen = {};
+    const extra = [];
+    v.forEach(function (r, i) {
+      const k = String(r[0]) + '|' + String(r[1]);
+      if (seen[k]) extra.push(i + 2); else seen[k] = true;
+    });
+    for (let i = extra.length - 1; i >= 0; i--) sh.deleteRow(extra[i]);
+    return extra.length;
+  });
 }

@@ -48,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.chitranjan.watchlist.data.AppState
+import com.chitranjan.watchlist.data.CrashLog
 import com.chitranjan.watchlist.data.Quote
 import com.chitranjan.watchlist.data.ThemeMode
 import com.chitranjan.watchlist.ui.ConnectionScreen
@@ -115,7 +116,7 @@ private fun App(state: AppState) {
     val cs = MaterialTheme.colorScheme
     val x = LocalExtra.current
 
-    fun open(o: Overlay) { stack = stack + o }
+    fun open(o: Overlay) { CrashLog.step("Opened $o"); stack = stack + o }
     fun back() { stack = stack.dropLast(1) }
     val openStock: (Quote) -> Unit = { q -> open(Overlay.Stock(q.ticker, q.list == "Indices")) }
 
@@ -145,7 +146,7 @@ private fun App(state: AppState) {
                         Tab.SETTINGS -> Icons.Filled.Settings
                     }
                     NavigationBarItem(
-                        selected = tab == t, onClick = { tab = t },
+                        selected = tab == t, onClick = { if (tab != t) CrashLog.step("Tab: ${t.label}"); tab = t },
                         icon = { Icon(icon, t.label) },
                         label = { Text(t.label, fontWeight = FontWeight.Bold) },
                         colors = NavigationBarItemDefaults.colors(

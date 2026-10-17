@@ -41,8 +41,11 @@ data class Prefs(
     val period: Period = Period.M1,
     /** Quantity and average price per stock, keyed by "list|ticker" (see [Quote.key]). */
     val holdings: Map<String, Holding> = emptyMap(),
+    /** Lists renamed on this phone: the Google Sheet's name → the name shown. */
+    val aliases: Map<String, String> = emptyMap(),
 )
 
+private val ALIASES = MapSerializer(String.serializer(), String.serializer())
 private val HOLDINGS = MapSerializer(String.serializer(), Holding.serializer())
 
 /** Everything the app remembers on the phone. Watchlists themselves live in the Google Sheet. */
@@ -66,6 +69,7 @@ class Settings(private val context: Context) {
         val startTab = stringPreferencesKey("start_tab")
         val period = stringPreferencesKey("period")
         val holdings = stringPreferencesKey("holdings")
+        val aliases = stringPreferencesKey("list_aliases")
     }
 
     private inline fun <reified T : Enum<T>> Preferences.enum(k: Preferences.Key<String>, d: T): T =
@@ -91,6 +95,7 @@ class Settings(private val context: Context) {
             startTab = p.enum(K.startTab, StartTab.WATCHLIST),
             period = p.enum(K.period, Period.M1),
             holdings = p[K.holdings]?.let { runCatching { Engine.json.decodeFromString(HOLDINGS, it) }.getOrNull() } ?: emptyMap(),
+            aliases = p[K.aliases]?.let { runCatching { Engine.json.decodeFromString(ALIASES, it) }.getOrNull() } ?: emptyMap(),
         )
     }
 
@@ -113,6 +118,7 @@ class Settings(private val context: Context) {
             it[K.startTab] = x.startTab.name
             it[K.period] = x.period.name
             it[K.holdings] = Engine.json.encodeToString(HOLDINGS, x.holdings)
+            it[K.aliases] = Engine.json.encodeToString(ALIASES, x.aliases)
         }
     }
 
