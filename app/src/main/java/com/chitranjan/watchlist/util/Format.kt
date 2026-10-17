@@ -36,6 +36,20 @@ fun volume(n: Double?): String = when {
     else -> num(n, 0)
 }
 
+/** ₹4.56 L, ₹1.23 Cr, ₹12,345. Hidden amounts show as dots. */
+fun inr(n: Double?, hide: Boolean = false, signed: Boolean = false): String {
+    if (n == null || n.isNaN()) return "—"
+    if (hide) return "₹ ••••"
+    val a = abs(n)
+    val body = when {
+        a >= 1e7 -> num(a / 1e7) + " Cr"
+        a >= 1e5 -> num(a / 1e5) + " L"
+        else -> num(a, if (a >= 100) 0 else 2)
+    }
+    val sign = when { n < 0 -> "-"; signed && n > 0 -> "+"; else -> "" }
+    return "$sign₹$body"
+}
+
 fun signPct(p: Double?): String = if (p == null) "—" else (if (p > 0) "+" else "") + num(p) + "%"
 fun arrow(c: Double?): String = when { c == null -> ""; c > 0 -> "▲"; c < 0 -> "▼"; else -> "•" }
 
@@ -92,3 +106,7 @@ fun sessionNote(s: Snapshot?): String {
         else -> "Opens tomorrow at 9:15 AM"
     }
 }
+
+private val LONG_DAY = DateTimeFormatter.ofPattern("d MMM yy", Locale.ENGLISH)
+fun epochDayLabel(day: Int): String = java.time.LocalDate.ofEpochDay(day.toLong()).format(LONG_DAY)
+fun keyLabel(key: Int): String = java.time.LocalDate.of(key / 10_000, key / 100 % 100, key % 100).format(LONG_DAY)

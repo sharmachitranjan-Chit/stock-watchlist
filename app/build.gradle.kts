@@ -12,8 +12,8 @@ android {
         applicationId = "com.chitranjan.watchlist"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
-        versionName = "3.0.1"
+        versionCode = 7
+        versionName = "3.1.1"
     }
 
     signingConfigs {
@@ -61,4 +61,6 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
+
+    testImplementation("junit:junit:4.13.2")
 }

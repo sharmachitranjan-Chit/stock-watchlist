@@ -28,3 +28,6 @@ val MarketsIcon: ImageVector = strokeIcon("markets", "M3,17 L9,11 L13,15 L21,7",
 
 /** Two opposite arrows: NSE ⇄ BSE. */
 val SwapIcon: ImageVector = strokeIcon("swap", "M4,8 L18,8", "M14,4 L18,8 L14,12", "M20,16 L6,16", "M10,12 L6,16 L10,20")
+
+/** Three bars of different heights: the Insights tab. */
+val InsightsIcon: ImageVector = strokeIcon("insights", "M5,20 L5,13", "M12,20 L12,5", "M19,20 L19,10")

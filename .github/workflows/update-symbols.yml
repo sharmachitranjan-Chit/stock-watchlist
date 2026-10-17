@@ -17,10 +17,12 @@ jobs:
         with:
           node-version: 22
       - name: Download NSE and BSE company lists
-        run: node scripts/build-symbols.mjs
+        run: |
+          node scripts/build-symbols.mjs
+          node scripts/build-sectors.mjs
       - name: Save if changed
         run: |
           git config user.name "Chitranjan Sharma"
           git config user.email "sharmachitranjan-Chit@users.noreply.github.com"
-          git add app/src/main/assets/symbols.json
+          git add app/src/main/assets/symbols.json app/src/main/assets/sectors.json
           git diff --cached --quiet || git commit -m "Update NSE and BSE company list" && git push
