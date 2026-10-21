@@ -29,6 +29,7 @@ object Engine {
     suspend fun remove(c: EngineConfig, list: String, ticker: String) = snapshot(call(c, "remove", "list" to list, "ticker" to ticker))
     suspend fun move(c: EngineConfig, list: String, ticker: String, dir: Int) = snapshot(call(c, "move", "list" to list, "ticker" to ticker, "dir" to dir.toString()))
     suspend fun deleteList(c: EngineConfig, list: String) = snapshot(call(c, "deleteList", "list" to list))
+    suspend fun renameList(c: EngineConfig, from: String, to: String) = snapshot(call(c, "renameList", "list" to from, "to" to to))
 
     suspend fun history(c: EngineConfig, ticker: String): List<Close> =
         call(c, "history", "ticker" to ticker).jsonArray.mapNotNull { row ->
@@ -38,7 +39,7 @@ object Engine {
             Close(d, p)
         }
 
-    private fun snapshot(e: JsonElement): Snapshot = json.decodeFromJsonElement(e)
+    private suspend fun snapshot(e: JsonElement): Snapshot = withContext(Dispatchers.Default) { json.decodeFromJsonElement(e) }
 
     private suspend fun call(c: EngineConfig, action: String, vararg params: Pair<String, String>): JsonElement =
         withContext(Dispatchers.IO) {

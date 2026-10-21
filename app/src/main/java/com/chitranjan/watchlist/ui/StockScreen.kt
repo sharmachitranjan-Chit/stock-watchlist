@@ -51,6 +51,8 @@ import androidx.compose.ui.unit.sp
 import com.chitranjan.watchlist.data.AppState
 import com.chitranjan.watchlist.data.Close
 import com.chitranjan.watchlist.data.Companies
+import com.chitranjan.watchlist.data.Sectors
+import com.chitranjan.watchlist.util.inr
 import com.chitranjan.watchlist.data.Quote
 import com.chitranjan.watchlist.util.INDEX_NAMES
 import com.chitranjan.watchlist.util.arrow
@@ -79,16 +81,13 @@ fun StockScreen(state: AppState, ticker: String, isIndex: Boolean, onBack: () ->
     var failed by remember(ticker) { mutableStateOf(false) }
     var period by remember { mutableStateOf("1M") }
     var busyList by remember { mutableStateOf<String?>(null) }
+    var editHolding by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(ticker) {
         try {
-            var h = state.history(ticker)
-            // Google keeps only a point or two of history for many BSE stocks; NSE tracks it within paise.
-            if (h.size < 15 && ticker.startsWith("BOM:") && !c?.nse.isNullOrEmpty()) {
-                val alt = runCatching { state.history("NSE:" + c!!.nse) }.getOrDefault(emptyList())
-                if (alt.size > h.size) { h = alt; fromNse = true }
-            }
-            hist = h
+            val th = state.historyOf(ticker)
+            fromNse = th.viaNse
+            hist = th.closes
         } catch (e: Exception) { failed = true; hist = emptyList() }
     }
 
@@ -124,7 +123,10 @@ fun StockScreen(state: AppState, ticker: String, isIndex: Boolean, onBack: () ->
         }
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = 30.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (!isIndex) { ExBadge(q?.exchange ?: if (ticker.startsWith("BOM:")) "BSE" else "NSE"); Spacer(Modifier.width(8.dp)) }
+                if (!isIndex) {
+                    ExBadge(q?.exchange ?: if (ticker.startsWith("BOM:")) "BSE" else "NSE"); Spacer(Modifier.width(6.dp))
+                    ExBadge(Sectors.short(Sectors.of(ticker, q?.name))); Spacer(Modifier.width(8.dp))
+                }
                 Text(if (isIndex) (if (ticker.startsWith("INDEXBOM")) "BSE index" else "NSE index") else c?.name ?: q?.name.orEmpty(),
                     style = MaterialTheme.typography.bodyMedium, color = x.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -220,6 +222,37 @@ fun StockScreen(state: AppState, ticker: String, isIndex: Boolean, onBack: () ->
                 }
             }
 
+            if (!isIndex && memberOf.isNotEmpty()) {
+                SectionTitle("Your holding")
+                CardBox(padding = 0.dp) {
+                    Column {
+                        val mine = state.lists.filter { it in memberOf }
+                        mine.forEachIndexed { i, l ->
+                            val h = state.prefs.holdings["$l|$ticker"]
+                            Row(Modifier.fillMaxWidth().clickable { editHolding = l }.rowPad(), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Text(l, style = MaterialTheme.typography.titleMedium, color = cs.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(
+                                        if (h == null) "Tap to add shares and buy price" else "${num(h.qty, if (h.qty % 1.0 == 0.0) 0 else 2)} shares · avg ₹${num(h.avg)}",
+                                        style = MaterialTheme.typography.bodySmall, color = x.muted, modifier = Modifier.padding(top = 2.dp),
+                                    )
+                                }
+                                if (h != null && price != null) {
+                                    val pnl = h.qty * (price - h.avg)
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text(inr(h.qty * price, state.prefs.hideAmounts), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = cs.onSurface)
+                                        Text("${inr(pnl, state.prefs.hideAmounts, signed = true)}  ${signPct(if (h.avg > 0) (price / h.avg - 1) * 100 else null)}",
+                                            fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = dirColor(pnl))
+                                    }
+                                } else Icon(Icons.Filled.Add, "Add holding", tint = cs.primary, modifier = Modifier.size(20.dp))
+                            }
+                            if (i < mine.size - 1) Divider()
+                        }
+                    }
+                }
+                Text("Stored only on this phone. Used for value and profit and loss in Insights.", style = MaterialTheme.typography.bodySmall, color = x.muted, modifier = Modifier.padding(top = 8.dp, start = 4.dp))
+            }
+
             if (!isIndex) {
                 SectionTitle("In your lists")
                 CardBox {
@@ -245,5 +278,13 @@ fun StockScreen(state: AppState, ticker: String, isIndex: Boolean, onBack: () ->
                 }
             }
         }
+    }
+
+    editHolding?.let { l ->
+        HoldingDialog(
+            title = "${Companies.label(ticker, q?.name)} in $l", current = state.prefs.holdings["$l|$ticker"], lastPrice = price,
+            onDismiss = { editHolding = null },
+            onSave = { h -> state.setHolding(l, ticker, h); editHolding = null; state.showToast(if (h == null) "Holding removed" else "Holding saved") },
+        )
     }
 }
