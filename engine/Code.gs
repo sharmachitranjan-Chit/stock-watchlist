@@ -136,10 +136,10 @@ function renameList(from, to) {
       const v = rng.getValues();
       let changed = false;
       for (let i = 0; i < v.length; i++) {
-        if (v[i][0] === to) throw new Error('A list called "' + to + '" already exists');
+        if (String(v[i][0]) === to) throw new Error('A list called "' + to + '" already exists');
       }
       for (let i = 0; i < v.length; i++) {
-        if (v[i][0] === from) { v[i][0] = to; changed = true; }
+        if (String(v[i][0]) === from) { v[i][0] = to; changed = true; }
       }
       if (changed) { rng.setValues(v); SpreadsheetApp.flush(); }
     }
