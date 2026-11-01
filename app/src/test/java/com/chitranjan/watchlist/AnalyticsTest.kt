@@ -180,4 +180,25 @@ class AnalyticsTest {
         assertEquals("+₹1,250", inr(1250.0, signed = true))
         assertEquals("₹ ••••", inr(1250.0, hide = true))
     }
+
+    @Test fun newNseListingsAreAddedToTheBundledList() {
+        val csv = buildString {
+            append("SYMBOL,NAME OF COMPANY, SERIES, DATE OF LISTING, PAID UP VALUE, MARKET LOT, ISIN NUMBER, FACE VALUE\n")
+            repeat(120) { append("SYM$it,Company $it Limited,EQ,01-JAN-2020,10,1,INE000A${"%05d".format(it)},10\n") }
+            append("JPL,Jio Platforms Limited,EQ,28-OCT-2026,10,1,INE0BJO01010,10\n")
+            append("BSEONLY,Was Bse Only Limited,EQ,28-OCT-2026,10,1,INE111B01010,10\n")
+            append("JUNK,Not Equity,GB,28-OCT-2026,10,1,INE222B01010,10\n")
+        }
+        val live = com.chitranjan.watchlist.data.Companies.parseNse(csv)
+        assertEquals(122, live.size)
+        val base = listOf(
+            com.chitranjan.watchlist.data.Company("Was Bse Only Limited", "Was Bse Only", "", "500999", "INE111B01010"),
+            com.chitranjan.watchlist.data.Company("Company 1 Limited", "Company 1", "SYM1", "500001", "INE000A00001"),
+        )
+        val merged = com.chitranjan.watchlist.data.Companies.applyLive(base, live)
+        assertEquals("JPL", merged.first { it.isin == "INE0BJO01010" }.nse)
+        assertEquals("BSEONLY", merged.first { it.isin == "INE111B01010" }.nse)
+        assertEquals("500999", merged.first { it.isin == "INE111B01010" }.bse)
+        assertEquals(1, merged.count { it.isin == "INE000A00001" })
+    }
 }

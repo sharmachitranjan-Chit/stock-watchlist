@@ -76,6 +76,7 @@ fun SettingsScreen(state: AppState, openConnection: () -> Unit) {
     var renaming by remember { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf<String?>(null) }
     var clearing by remember { mutableStateOf(false) }
+    var checking by remember { mutableStateOf(false) }
     var crashes by remember { mutableStateOf(CrashLog.reports()) }
     var showCrashes by remember { mutableStateOf(false) }
     val counts = state.data?.rows.orEmpty().groupingBy { it.list }.eachCount()
@@ -204,7 +205,14 @@ fun SettingsScreen(state: AppState, openConnection: () -> Unit) {
                     NavRow("Price engine", if (state.error != null) "Problem" else if (state.usingCustomEngine) "Custom link" else "Connected",
                         if (state.error != null) x.down else x.up, onClick = openConnection)
                     Divider()
-                    NavRow("Company list", "${"%,d".format(Companies.all.size)} on NSE + BSE", null, onClick = null)
+                    NavRow("Company list", if (checking) "Checking…" else "${"%,d".format(Companies.all.size)} · tap to check for new listings", null, onClick = {
+                        if (!checking) scope.launch {
+                            checking = true
+                            val n = state.checkNewListings()
+                            checking = false
+                            state.showToast(if (n == null) "Could not reach NSE right now" else "Company list is up to date (${"%,d".format(Companies.all.size)})")
+                        }
+                    })
                     Divider()
                     NavRow("Saved price history", "Clear", null, onClick = { clearing = true })
                 }

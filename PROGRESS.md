@@ -23,6 +23,13 @@ Prices come from Google Finance through the "Stock Watchlist" Google Sheet and t
 - **Sectors** are NSE's official industry for about 750 companies (`assets/sectors.json`, refreshed weekly by `scripts/build-sectors.mjs`); "Financial Services" is split into Banks and Insurance by name. Anything else is guessed from words in the company name, else "Other".
 - All of this is plain Kotlin in `data/Analytics.kt`, linear in stocks × days (200 stocks × 350 days ≈ 12 ms) and covered by unit tests (`app/src/test`). Heavy work runs on a background dispatcher and is recomputed only when prices, the list, the holdings or the period change.
 
+## New listings and IPOs
+
+Search does **not** read the Google Sheet. It reads the company list bundled in the app (`assets/symbols.json`, built from NSE and BSE by `scripts/build-symbols.mjs`).
+- A GitHub workflow refreshes that file **every day** and, when it changed, starts the APK build (before, a push by the workflow did not start a build, so new lists never reached the phone).
+- The app also asks NSE directly for its list of listed companies (`Companies.refreshLive`, at most every 6 hours, on start-up and from Settings → Data → Company list), so a company listed today can be searched and added the same day without a new APK. A new BSE-only listing, or the BSE code of a new company, arrives with the daily refresh.
+- Adding a stock goes through the sheet's `GOOGLEFINANCE`, which has prices for newly listed shares from their first trading day.
+
 ## Renaming a list
 
 Renaming works inside the app and needs **no change to the Google Sheet script**: the app keeps the new name on the phone and translates it back to the sheet's own name for every add, remove, move and delete.

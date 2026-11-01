@@ -54,6 +54,7 @@ class AppState(app: Application) : AndroidViewModel(app) {
             prefs = settings.load()
             data = settings.loadCache()?.let { dedupe(it) }
             ready = true
+            launch(Dispatchers.IO) { Companies.refreshLive(app) }
             if (CrashLog.hasUnseen()) showToast("The app closed unexpectedly last time. Details in Settings → Crash reports.")
             refresh()
         }
@@ -260,6 +261,9 @@ class AppState(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+
+    /** Looks for newly listed companies on NSE. Returns how many were found, or null if NSE could not be reached. */
+    suspend fun checkNewListings(): Int? = withContext(Dispatchers.IO) { Companies.refreshLive(getApplication(), force = true) }
 
     fun clearHistory() {
         historyJob?.cancel()

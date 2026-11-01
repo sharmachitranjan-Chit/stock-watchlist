@@ -71,7 +71,8 @@ fun SearchScreen(state: AppState) {
     val focusManager = LocalFocusManager.current
     LaunchedEffect(Unit) { focus.requestFocus() }
 
-    val results = remember(q) { if (q.isBlank()) Companies.popular else Companies.search(q) }
+    val listVersion = Companies.version
+    val results = remember(q, listVersion) { if (q.isBlank()) Companies.popular else Companies.search(q) }
     val list = state.activeList
     val inList = state.data?.rows.orEmpty().filter { it.list == list }.map { it.ticker }.toSet()
 
