@@ -7,6 +7,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -88,19 +89,22 @@ fun SectionTitle(text: String, trailing: (@Composable () -> Unit)? = null) {
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun ChipBtn(label: String, active: Boolean = false, icon: ImageVector? = null, onClick: () -> Unit) {
+fun ChipBtn(label: String, active: Boolean = false, icon: ImageVector? = null, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val x = LocalExtra.current
-    Surface(
-        onClick = onClick, shape = CircleShape,
-        color = if (active) cs.primary else cs.surface,
-        border = BorderStroke(1.dp, if (active) cs.primary else x.border),
+    val shape = CircleShape
+    Row(
+        Modifier.height(36.dp).clip(shape)
+            .background(if (active) cs.primary else cs.surface)
+            .border(1.dp, if (active) cs.primary else x.border, shape)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(Modifier.padding(horizontal = 14.dp).height(34.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (icon != null) { Icon(icon, null, Modifier.size(16.dp), tint = if (active) cs.onPrimary else x.textSoft); Spacer(Modifier.width(4.dp)) }
-            Text(label, fontSize = 13.5.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium, color = if (active) cs.onPrimary else x.textSoft)
-        }
+        if (icon != null) { Icon(icon, null, Modifier.size(16.dp), tint = if (active) cs.onPrimary else x.textSoft); Spacer(Modifier.width(4.dp)) }
+        Text(label, fontSize = 13.5.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium, color = if (active) cs.onPrimary else x.textSoft, maxLines = 1)
     }
 }
 
@@ -233,7 +237,8 @@ fun FlashPrice(text: String, flash: com.chitranjan.watchlist.data.Flash?, size: 
     )
 }
 
-fun Modifier.rowPad() = this.padding(horizontal = 14.dp, vertical = 13.dp)
+@Composable
+fun Modifier.rowPad(): Modifier = this.padding(horizontal = 14.dp, vertical = LocalExtra.current.rowV)
 
 
 /** Tap target without the ripple, for small inline icons. */

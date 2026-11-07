@@ -37,3 +37,7 @@ data class Snapshot(
 data class Close(val date: String, val price: Double)
 
 data class EngineConfig(val url: String, val key: String)
+
+/** What the user owns of a stock in one list: quantity and average buy price. Kept on the phone only. */
+@Serializable
+data class Holding(val qty: Double, val avg: Double)

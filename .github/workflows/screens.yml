@@ -2,7 +2,7 @@ name: Screenshot check
 
 on:
   push:
-    branches: [native]
+    branches: [native, 'claude/**']
   workflow_dispatch:
 
 permissions:
