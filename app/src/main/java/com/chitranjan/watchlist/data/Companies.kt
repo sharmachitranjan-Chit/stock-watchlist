@@ -53,42 +53,57 @@ object Companies {
         all = rows
     }
 
-    /* ---------- live check for new listings ---------- */
+    /* ---------- live check for new listings (NSE and BSE) ---------- */
 
-    /** A listing found on NSE: [name, symbol, isin]. */
-    internal class Live(val name: String, val sym: String, val isin: String)
+    /** A listing seen live on an exchange. [nse] or [bse] is empty when that exchange did not report it. */
+    internal class Live(val name: String, val nse: String, val bse: String, val isin: String)
 
-    private fun liveFile(context: Context) = File(context.filesDir, "nse-live.csv")
+    private fun nseFile(context: Context) = File(context.filesDir, "nse-live.csv")
+    private fun bseFile(context: Context) = File(context.filesDir, "bse-live.csv")
 
     private fun readLive(context: Context): List<Live> = runCatching {
-        val f = liveFile(context)
-        if (f.exists()) parseNse(f.readText()) else emptyList()
+        val n = nseFile(context).takeIf { it.exists() }?.let { parseNse(it.readText()) }.orEmpty()
+        val b = bseFile(context).takeIf { it.exists() }?.let { parseBse(it.readText()) }.orEmpty()
+        n + b
     }.getOrDefault(emptyList())
 
-    /** Adds NSE listings the bundled list lacks, and gives BSE-only companies their new NSE symbol. */
+    /**
+     * Merges live listings into the bundled list by ISIN: a company the bundled list lacks is added, and a company
+     * known on one exchange gets its code on the other (so a new IPO shows both its NSE and BSE buttons).
+     */
     internal fun applyLive(rows: List<Company>, live: List<Live>): List<Company> {
         if (live.isEmpty()) { liveCount = 0; return rows }
-        val byIsin = HashMap<String, Int>()
-        rows.forEachIndexed { i, c -> if (c.isin.isNotEmpty()) byIsin[c.isin] = i }
         val out = rows.toMutableList()
-        val known = rows.mapTo(HashSet()) { it.nse }
-        var added = 0
+        val byIsin = HashMap<String, Int>()
+        out.forEachIndexed { i, c -> if (c.isin.isNotEmpty()) byIsin[c.isin] = i }
+        val nseTaken = out.mapTo(HashSet()) { it.nse }.apply { remove("") }
+        val bseTaken = out.mapTo(HashSet()) { it.bse }.apply { remove("") }
+        var changed = 0
         for (l in live) {
+            val nse = l.nse.takeIf { it.isNotEmpty() && it !in nseTaken }.orEmpty()
+            val bse = l.bse.takeIf { it.isNotEmpty() && it !in bseTaken }.orEmpty()
+            if (nse.isEmpty() && bse.isEmpty()) continue
             val i = byIsin[l.isin]
             if (i != null) {
                 val c = out[i]
-                if (c.nse.isEmpty() && l.sym !in known) { out[i] = Company(c.name, c.short, l.sym, c.bse, c.isin); added++ }
-            } else if (l.sym !in known) {
-                val name = l.name
-                out.add(Company(name, shortName(name), l.sym, "", l.isin)); known.add(l.sym); added++
+                val newNse = c.nse.ifEmpty { nse }; val newBse = c.bse.ifEmpty { bse }
+                if (newNse == c.nse && newBse == c.bse) continue
+                out[i] = Company(c.name, c.short, newNse, newBse, c.isin)
+            } else {
+                out.add(Company(l.name, shortName(l.name), nse, bse, l.isin))
+                byIsin[l.isin] = out.size - 1
             }
+            if (nse.isNotEmpty()) nseTaken.add(nse)
+            if (bse.isNotEmpty()) bseTaken.add(bse)
+            changed++
         }
-        liveCount = added
+        liveCount = changed
         return out
     }
 
     private val SERIES = setOf("EQ", "BE", "BZ", "SM", "ST")
 
+    /** NSE's EQUITY_L.csv: every listed company with its symbol and ISIN. */
     internal fun parseNse(csv: String): List<Live> {
         val lines = csv.replace("\r", "").split('\n').filter { it.isNotBlank() }
         if (lines.size < 100) return emptyList()
@@ -101,33 +116,75 @@ object Companies {
             val sym = c.getOrNull(iSym).orEmpty(); val isin = c.getOrNull(iIsin).orEmpty()
             val series = if (iSeries >= 0) c.getOrNull(iSeries).orEmpty() else "EQ"
             if (sym.isEmpty() || isin.isEmpty() || series !in SERIES) null
-            else Live(c.getOrNull(iName).orEmpty().replace(Regex("\\s+"), " "), sym, isin)
+            else Live(c.getOrNull(iName).orEmpty().replace(Regex("\\s+"), " "), sym, "", isin)
         }
     }
 
+    /** BSE's daily equity bhavcopy: every share that traded that day, with its scrip code and ISIN. */
+    internal fun parseBse(csv: String): List<Live> {
+        val lines = csv.replace("\r", "").split('\n').filter { it.isNotBlank() }
+        if (lines.size < 100) return emptyList()
+        val head = lines[0].split(',').map { it.trim().uppercase() }
+        val iCode = head.indexOf("FININSTRMID"); val iIsin = head.indexOf("ISIN")
+        val iName = head.indexOf("FININSTRMNM"); val iType = head.indexOf("FININSTRMTP")
+        if (iCode < 0 || iIsin < 0 || iName < 0) return emptyList()
+        return lines.drop(1).mapNotNull { l ->
+            val c = l.split(',').map { it.trim() }
+            val code = c.getOrNull(iCode).orEmpty(); val isin = c.getOrNull(iIsin).orEmpty()
+            val type = if (iType >= 0) c.getOrNull(iType).orEmpty() else "STK"
+            if (code.length != 6 || !code.all { it.isDigit() } || !isin.startsWith("IN") || type != "STK") null
+            else Live(titleCase(c.getOrNull(iName).orEmpty()), "", code, isin)
+        }
+    }
+
+    /** "JIO PLATFORMS LIMITED" → "Jio Platforms Limited". */
+    private fun titleCase(s: String) = s.lowercase().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        .joinToString(" ") { w -> w.replaceFirstChar { it.uppercase() } }
+
+    private const val UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36"
+
+    /** GET [url]; returns the body on HTTP 200, otherwise null. */
+    private fun download(url: String, referer: String): String? {
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 15_000; readTimeout = 30_000
+            setRequestProperty("User-Agent", UA)
+            setRequestProperty("Referer", referer)
+        }
+        return try { if (conn.responseCode == 200) conn.inputStream.bufferedReader().use { it.readText() } else null }
+        finally { conn.disconnect() }
+    }
+
+    private fun fresh(f: File) = f.exists() && System.currentTimeMillis() - f.lastModified() < 6 * 3600_000L
+
     /**
-     * Downloads NSE's list of listed companies (public file, a few hundred KB) and adds anything new, such as a
-     * company listed this week. Done at most every 6 hours unless [force]. Returns how many new companies were
-     * found, or null if the check could not be made; failures keep the list as it was.
+     * Checks both exchanges for companies the bundled list lacks: NSE's list of listed companies, and BSE's latest
+     * daily bhavcopy (published each trading evening; the newest of the last week is used). Each is downloaded at
+     * most every 6 hours unless [force]. Returns how many companies were added or completed, or null when neither
+     * exchange could be reached; a failure keeps the list as it was.
      */
     fun refreshLive(context: Context, force: Boolean = false): Int? {
-        val f = liveFile(context)
-        if (!force && f.exists() && System.currentTimeMillis() - f.lastModified() < 6 * 3600_000L) return liveCount
-        return try {
-            val conn = (URL("https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv").openConnection() as HttpURLConnection).apply {
-                connectTimeout = 15_000; readTimeout = 25_000
-                setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36")
-                setRequestProperty("Referer", "https://www.nseindia.com/")
+        val nf = nseFile(context); val bf = bseFile(context)
+        if (!force && fresh(nf) && fresh(bf)) return liveCount
+        var reached = false
+        if (force || !fresh(nf)) runCatching {
+            download("https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv", "https://www.nseindia.com/")
+                ?.takeIf { parseNse(it).size >= 1000 }?.let { nf.writeText(it); reached = true }
+        }
+        if (force || !fresh(bf)) runCatching {
+            var day = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"))
+            for (k in 0 until 8) {
+                if (day.dayOfWeek.value <= 5) {
+                    val d = day.format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE)
+                    val text = runCatching { download("https://www.bseindia.com/download/BhavCopy/Equity/BhavCopy_BSE_CM_0_0_0_${d}_F_0000.CSV", "https://www.bseindia.com/") }.getOrNull()
+                    if (text != null && parseBse(text).size >= 1000) { bf.writeText(text); reached = true; break }
+                }
+                day = day.minusDays(1)
             }
-            val text = try { if (conn.responseCode != 200) return null; conn.inputStream.bufferedReader().use { it.readText() } } finally { conn.disconnect() }
-            val live = parseNse(text)
-            if (live.size < 1000) return null
-            f.writeText(text)
-            val before = all.size
-            install(applyLive(base, live))
-            version++
-            if (force) all.size - before else liveCount
-        } catch (e: Exception) { null }
+        }
+        if (!reached && !(fresh(nf) || fresh(bf))) return null
+        install(applyLive(base, readLive(context)))
+        version++
+        return liveCount
     }
 
     fun shortName(name: String) = name

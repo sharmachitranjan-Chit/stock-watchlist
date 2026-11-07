@@ -27,7 +27,7 @@ Prices come from Google Finance through the "Stock Watchlist" Google Sheet and t
 
 Search does **not** read the Google Sheet. It reads the company list bundled in the app (`assets/symbols.json`, built from NSE and BSE by `scripts/build-symbols.mjs`).
 - A GitHub workflow refreshes that file **every day** and, when it changed, starts the APK build (before, a push by the workflow did not start a build, so new lists never reached the phone).
-- The app also asks NSE directly for its list of listed companies (`Companies.refreshLive`, at most every 6 hours, on start-up and from Settings → Data → Company list), so a company listed today can be searched and added the same day without a new APK. A new BSE-only listing, or the BSE code of a new company, arrives with the daily refresh.
+- The app also checks **both exchanges directly** (`Companies.refreshLive`, at most every 6 hours, on start-up and from Settings → Data → Company list): NSE's list of listed companies (`EQUITY_L.csv`) and BSE's latest daily bhavcopy (every share that traded, with scrip code and ISIN; BSE's own company-list API blocks non-browser clients). New companies are merged by ISIN, so a new IPO shows both its NSE and BSE buttons without a new APK. The BSE file appears each trading evening, so a BSE code can lag the listing by a few hours.
 - Adding a stock goes through the sheet's `GOOGLEFINANCE`, which has prices for newly listed shares from their first trading day.
 
 ## Renaming a list

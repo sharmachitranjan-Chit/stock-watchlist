@@ -12,8 +12,8 @@ android {
         applicationId = "com.chitranjan.watchlist"
         minSdk = 26
         targetSdk = 36
-        versionCode = 8
-        versionName = "3.1.2"
+        versionCode = 9
+        versionName = "3.1.3"
     }
 
     signingConfigs {
